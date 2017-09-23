@@ -43,7 +43,7 @@ public class LocationProviderService extends Service {
                 final double longitude = location.getLongitude();
                 locationUpdateIntent.putExtra("lat", latitude);
                 locationUpdateIntent.putExtra("long", longitude);
-                sendBroadcast(locationUpdateIntent);
+                //sendBroadcast(locationUpdateIntent);
                 notifyCoordinate("coord : [" + latitude + ",  " + longitude + "]");
             }
 
