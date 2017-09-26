@@ -24,9 +24,9 @@ import java.util.Set;
 public class MQTTPullerService extends IntentService implements MqttCallback {
 
     private static final String TAG = "MQTTPullerService";
-    private static final long SYNCH_TIME = 10 * 1000;
+    private static final long SYNCH_TIME = 30 * 1000;
     private static final String clientId = "paho123";
-    private static final String TOPIC = "Co-ordinates1";
+    private final String TOPIC = "mykid/location";
     private Set<String> visitedLatLng = new HashSet<>();
     private MqttAndroidClient mqttPullerClient;
 
@@ -36,7 +36,7 @@ public class MQTTPullerService extends IntentService implements MqttCallback {
         @Override
         public void run() {
             synchLocationData();
-            mHandler.postDelayed(runnableMQTTPuller, SYNCH_TIME);
+         //   mHandler.postDelayed(runnableMQTTPuller, SYNCH_TIME);
         }
     };
 
@@ -63,12 +63,12 @@ public class MQTTPullerService extends IntentService implements MqttCallback {
 
     private synchronized void synchLocationData() {
         try {
-            mqttPullerClient = new MqttAndroidClient(this.getApplicationContext(), "tcp://broker.hivemq.com:1883", clientId);
+            mqttPullerClient = new MqttAndroidClient(this.getApplicationContext(), Constants.MQTT_SERVER, clientId);
             final IMqttToken mqttToken = mqttPullerClient.connect();
             mqttToken.setActionCallback(new IMqttActionListener() {
                 @Override
                 public void onSuccess(IMqttToken asyncActionToken) {
-                       Log.d(TAG, " synch mqttToken onSuccess");
+                    Log.d(TAG, " synch mqttToken onSuccess");
                     mqttPullerClient.setCallback(MQTTPullerService.this);
                     try {
                         final IMqttToken subscribeToken = mqttPullerClient.subscribe(TOPIC, 1);
@@ -106,10 +106,8 @@ public class MQTTPullerService extends IntentService implements MqttCallback {
         if (message != null && message.toString().length() > 0) {
 
             final boolean toBeVisited = visitedLatLng.add(message.toString());
-
-            Log.d(TAG, "synch puller messageArrived : " + message.toString());
-
             if (toBeVisited) {
+                Log.d(TAG, "synch puller messageArrived : " + message.toString());
 
                 Intent pullerIntent = new Intent("message_intent");
 
@@ -136,6 +134,16 @@ public class MQTTPullerService extends IntentService implements MqttCallback {
         try {
             Log.d(TAG, "deliveryComplete");
             token.getMessage().clearPayload();
+        } catch (MqttException e) {
+            e.printStackTrace();
+        }
+    }
+
+    @Override
+    public void onDestroy() {
+        super.onDestroy();
+        try {
+            mqttPullerClient.disconnect();
         } catch (MqttException e) {
             e.printStackTrace();
         }

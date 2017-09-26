@@ -48,7 +48,16 @@
 
         <activity
             android:name=".MapsActivity"
-            android:label="@string/title_activity_maps"></activity>
+            android:label="@string/title_activity_maps" />
+
+        <service
+            android:name=".GeofenceTransitionsIntentService"
+            android:exported="false" />
+
+        <activity
+            android:name=".GeoFenceActivity"
+            android:label="@string/title_activity_geo_fence"
+            android:theme="@style/AppTheme.NoActionBar"></activity>
     </application>
 
 </manifest>

@@ -18,11 +18,28 @@ import android.support.v4.app.NotificationCompat;
 import android.support.v4.app.NotificationManagerCompat;
 import android.util.Log;
 
+import org.eclipse.paho.android.service.MqttAndroidClient;
+import org.eclipse.paho.client.mqttv3.IMqttActionListener;
+import org.eclipse.paho.client.mqttv3.IMqttToken;
+import org.eclipse.paho.client.mqttv3.MqttClient;
+import org.eclipse.paho.client.mqttv3.MqttException;
+import org.eclipse.paho.client.mqttv3.MqttMessage;
+
+import java.io.UnsupportedEncodingException;
+
+import static android.content.Intent.FLAG_ACTIVITY_NEW_TASK;
+
 public class LocationProviderService extends Service {
     private static String TAG = "LocationProviderService";
-
+    private final String TOPIC = "mykid/location";
+    byte[] encodedPayload;
+    private String clientId;
+    private MqttAndroidClient client;
+    private IMqttToken mqttToken;
+    private String payload;
     private LocationListener mLocationListener;
     private LocationManager mLocationManager;
+    private String ENCODE_CHARSET;
 
     @Nullable
     @Override
@@ -34,6 +51,9 @@ public class LocationProviderService extends Service {
     public void onCreate() {
         super.onCreate();
         Log.d(TAG, "onCreate");
+
+        connectWithMQTTService();
+
         mLocationListener = new LocationListener() {
             @Override
             public void onLocationChanged(Location location) {
@@ -44,6 +64,11 @@ public class LocationProviderService extends Service {
                 locationUpdateIntent.putExtra("lat", latitude);
                 locationUpdateIntent.putExtra("long", longitude);
                 //sendBroadcast(locationUpdateIntent);
+
+                payload = latitude + ", " + longitude;
+
+                publishPayloadToMQTTServer(payload);
+
                 notifyCoordinate("coord : [" + latitude + ",  " + longitude + "]");
             }
 
@@ -61,7 +86,7 @@ public class LocationProviderService extends Service {
             public void onProviderDisabled(String provider) {
                 Log.d(TAG, "onProviderDisabled");
                 Intent intent = new Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS);
-                intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                intent.setFlags(FLAG_ACTIVITY_NEW_TASK);
                 startActivity(intent);
 
             }
@@ -74,6 +99,8 @@ public class LocationProviderService extends Service {
         }
         mLocationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 3000, 50, mLocationListener);
     }
+
+
 
     @Override
     public void onDestroy() {
@@ -88,6 +115,12 @@ public class LocationProviderService extends Service {
 
 
     private void notifyCoordinate(String coordinates) {
+
+//        Intent geoFenceActivityIntent = new Intent(this, GeoFenceActivity.class);
+//        geoFenceActivityIntent.putExtra("coordinates",coordinates);
+//        geoFenceActivityIntent.addFlags(FLAG_ACTIVITY_NEW_TASK);
+//        startActivity(geoFenceActivityIntent);
+
         NotificationCompat.Builder notificationBuilder = new NotificationCompat.Builder(this)
                 .setSmallIcon(android.R.drawable.stat_notify_error)
                 .setLargeIcon(BitmapFactory.decodeResource(getResources(), R.mipmap.ic_launcher))
@@ -96,5 +129,43 @@ public class LocationProviderService extends Service {
         notificationBuilder.setDefaults(Notification.DEFAULT_ALL);
         NotificationManagerCompat notificationManager = NotificationManagerCompat.from(this);
         notificationManager.notify(1, notificationBuilder.build());
+    }
+
+
+    private void connectWithMQTTService() {
+        clientId = MqttClient.generateClientId();
+        client = new MqttAndroidClient(this.getApplicationContext(), Constants.MQTT_SERVER, clientId);
+        encodedPayload = new byte[0];
+
+        try {
+            mqttToken = client.connect();
+            mqttToken.setActionCallback(new IMqttActionListener() {
+                @Override
+                public void onSuccess(IMqttToken asyncActionToken) {
+                    Log.d(TAG, "onSuccess");
+                }
+
+                @Override
+                public void onFailure(IMqttToken asyncActionToken, Throwable exception) {
+                    Log.d(TAG, "onFailure");
+                }
+            });
+        } catch (MqttException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void publishPayloadToMQTTServer(final String payload) {
+
+        ENCODE_CHARSET = "UTF-8";
+        try {
+            encodedPayload = payload.getBytes(ENCODE_CHARSET);
+            MqttMessage mqttMessage = new MqttMessage(encodedPayload);
+            mqttMessage.setRetained(true);
+            client.publish(TOPIC, mqttMessage);
+
+        } catch (UnsupportedEncodingException | MqttException e) {
+            e.printStackTrace();
+        }
     }
 }
